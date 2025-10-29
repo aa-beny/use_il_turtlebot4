@@ -1,0 +1,85 @@
+q/z：總體最大速度 ±10%
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+線速度控制在 0.15–0.25 m/s 之間，角速度控制在 0.5–1.0 rad/s；
+--------------------------------------------------------------------------------
+----------------------------------------------------------------------------
+git hub:
+rm -rf .git
+git add .
+git commit -m "updete"
+git push
+----------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+2) 把 ~/.local/bin 加到 PATH（讓 torchrun 等指令可用）
+
+系統提示那些 script 安在 ~/.local/bin：
+
+echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+------------------------------------------------------------------------------------------------
+
+
+收集
+ros2 run navlearn_data_tools timecollector \
+  --ros-args \
+  -p save_dir:=/home/open/ws_navlearn/data \
+  -p bins:=360 -p max_range:=3.5 \
+  -p hz:=10.0 \
+  -p d_stop:=0.28 \
+  -p backtrack_sec:=2.0
+收集不同cmd_vel：
+因為我現在車子走時候在空曠地方連動都不會動那我按鈕讓它動的這段也要錄進去八
+ros2 run navlearn_data_tools dagger_collector --ros-args -p save_dir:=/home/open/ws_navlearn/data_dagger_open -p arm_thresh:=0.45 -p stop_thresh:=0.00 -p require_arm_for_manual:=false -p trig_eps:=0.10 -p trig_hold:=1 -p manual_quiet:=0.5 -p pre_sec:=1.0 -p post_sec:=0.8 -p refrac_sec:=2.0 -p max_seg_sec:=10.0
+
+ros2 run navlearn_data_tools dagger_collector --ros-args -p save_dir:=/home/open/ws_navlearn/data_dagger_open2 -p arm_thresh:=0.45 -p stop_thresh:=0.00 -p require_arm_for_manual:=false -p trig_eps:=0.10 -p trig_hold:=1 -p manual_quiet:=0.5 -p pre_sec:=1.0 -p post_sec:=0.8 -p refrac_sec:=2.0 -p max_seg_sec:=10.0
+ ------------------------------------------------------------------------------------------------
+
+
+鍵盤換cmdvel
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/cmd_vel/manual
+
+跑模型(換cmdvel)
+ros2 run use_il collect_lidar_il  \
+  --ros-args \
+  -p model_path:=/home/open/ws_navlearn/models_dagger2/il_lidar.pt \
+  -p topic_scan:=/scan  -p topic_cmd:=/cmd_vel \
+  -p bins:=360 -p max_range:=3.5 \
+  -p hz:=15.0 \
+  -p safety_stop:=0.28 -p v_max:=0.4 -p w_max:=1.2 \
+  -p v_gain:=1.0 -p w_gain:=1.0 -p v_min:=0.00 -p w_min:=0.00 \
+  -p slowturn_gain:=2.0 \
+  -p log_rate:=2.0 -p log_csv:=/home/open/ws_navlearn/logs/run1.csv
+需要改的 
+  models_dagger2
+ 
+------------------------------------------------------------------------------------------------
+訓練 MLP 360→256→256→2，Loss = MSE(v̂,v)+3·MSE(ŵ,w)，用 Adam(lr=1e-3)、batch=512、早停，並把權重存成
+
+ python3 ~/ws_navlearn/train_il_lidar.py   --data_dir  ~/ws_navlearn/data   --out_path  ~/ws_navlearn/models/il_lidar.pt   --bins 360 --max_range 3.5   --epochs 200 --batch 512 --lr 1e-3   --val_ratio 0.1 --patience 10 --lambda_w 3.0
+ 
+ 
+畫圖板
+ python3 ~/ws_navlearn/draw_train_il_lidar.py   --data_dir  ~/ws_navlearn/data2   --out_path  ~/ws_navlearn/models_dagger/il_lidar.pt   --bins 360 --max_range 3.5   --epochs 200 --batch 512 --lr 1e-3   --val_ratio 0.1 --patience 10 --lambda_w 3.0
+需要改的 
+	 ~/ws_navlearn/data2
+    ~/ws_navlearn/models_dagger/il_lidar.pt
+------------------------------------------------------------------------------------------------
+Running the simulator with default settings:
+
+ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py
+
+Running synchronous SLAM with Nav2:
+
+ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py slam:=true nav2:=true rviz:=true
+
+
+地圖要不要換
+迷宮
+ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py rviz:=true world:=maze
+工廠
+ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py rviz:=true world:=warehouse
+測試
+ros2 launch turtlebot4_ignition_bringup turtlebot4_ignition.launch.py rviz:=true world:=depot
+
+ros2 topic echo --once /scan
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
